@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+#include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,6 +22,53 @@ InputBuffer* new_input_buffer() {
 }
 
 void print_prompt() { printf("db > "); }
+
+// Custom getline implementation for Windows
+ssize_t getline(char **lineptr, size_t *n, FILE *stream) {
+    size_t pos;
+    int c;
+
+    if (lineptr == NULL || stream == NULL || n == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    // Allocate buffer if needed
+    if (*lineptr == NULL) {
+        *n = 128; // Initial buffer size
+        *lineptr = (char *)malloc(*n);
+        if (*lineptr == NULL) {
+            return -1;
+        }
+    }
+
+    pos = 0;
+
+    while ((c = getc(stream)) != EOF) {
+        if (pos + 1 >= *n) {
+            size_t new_size = *n + (*n >> 2);
+            char *new_ptr = (char *)realloc(*lineptr, new_size);
+            if (new_ptr == NULL) {
+                return -1;
+            }
+            *n = new_size;
+            *lineptr = new_ptr;
+        }
+
+        (*lineptr)[pos++] = c;
+
+        if (c == '\n') {
+            break;
+        }
+    }
+
+    if (pos == 0) {
+        return -1;
+    }
+
+    (*lineptr)[pos] = '\0';
+    return pos;
+}
 
 void read_input(InputBuffer* input_buffer) {
   ssize_t bytes_read = getline(&(input_buffer->buffer), &(input_buffer->buffer_length), stdin);
@@ -47,7 +96,9 @@ typedef enum {
 typedef enum { 
   PREPARE_SUCCESS, 
   PREPARE_SYNTAX_ERROR,
-  PREPARE_UNRECOGNIZED
+  PREPARE_UNRECOGNIZED,
+  PREPARE_NEGATIVE_ID,
+  PREPARE_STRING_TOO_LONG
 } PrepareResult;
 
 typedef enum { STATEMENT_INSERT, STATEMENT_SELECT } StatementType;
@@ -57,8 +108,8 @@ typedef enum { STATEMENT_INSERT, STATEMENT_SELECT } StatementType;
 
 typedef struct {
   int id;
-  char username[COLUMN_USERNAME_SIZE];
-  char email[COLUMN_EMAIL_SIZE];
+  char username[COLUMN_USERNAME_SIZE + 1]; // + 1 for null termination character
+  char email[COLUMN_EMAIL_SIZE + 1];
 } Row;
 
 typedef struct {
@@ -167,18 +218,41 @@ MetaCommandResult do_meta_command(InputBuffer* input_buffer, Table *table) {
   }
 }
 
+PrepareResult prepare_insert(InputBuffer* input_buffer, Statement* statement) {
+  statement->type = STATEMENT_INSERT;
+
+  char* keyword = strtok(input_buffer->buffer, " ");
+  char* id_string = strtok(NULL, " ");
+  char* username = strtok(NULL, " ");
+  char* email = strtok(NULL, " ");
+
+  if (id_string == NULL || username == NULL || email == NULL) {
+    return PREPARE_SYNTAX_ERROR;
+  }
+
+  int id = atoi(id_string);
+  if (id < 0) {
+    return PREPARE_NEGATIVE_ID;
+  }
+  if (strlen(username) > COLUMN_USERNAME_SIZE) {
+    return PREPARE_STRING_TOO_LONG;
+  }
+
+  if (strlen(email) > COLUMN_EMAIL_SIZE) {
+    return PREPARE_STRING_TOO_LONG;
+  }
+
+  statement->row_to_insert.id = id;
+  strcpy(statement->row_to_insert.username, username);
+  strcpy(statement->row_to_insert.email, email);
+
+  return PREPARE_SUCCESS;
+}
+
 PrepareResult prepare_statement(InputBuffer* input_buffer,
                                 Statement* statement) {
   if (strncmp(input_buffer->buffer, "insert", 6) == 0) {
-    statement->type = STATEMENT_INSERT;
-    int args_assigned = sscanf(
-      input_buffer->buffer, "insert %d %s %s", &(statement->row_to_insert.id),
-      statement->row_to_insert.username, statement->row_to_insert.email
-    );
-    if (args_assigned < 3) {
-	    return PREPARE_SYNTAX_ERROR;
-    }
-    return PREPARE_SUCCESS;
+    return prepare_insert(input_buffer, statement);
   }
   if (strcmp(input_buffer->buffer, "select") == 0) {
     statement->type = STATEMENT_SELECT;
@@ -188,51 +262,48 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,
   return PREPARE_UNRECOGNIZED;
 }
 
-void execute_statement(Statement* statement) {
-  switch (statement->type) {
-    case (STATEMENT_INSERT):
-      printf("This is where we would do an insert.\n");
-      break;
-    case (STATEMENT_SELECT):
-      printf("This is where we would do a select.\n");
-      break;
-  }
-}
 
 int main(int argc, char* argv[]) {
   Table* table = new_table();
   InputBuffer* input_buffer = new_input_buffer();
   while (true) {
-      print_prompt();
-      read_input(input_buffer);
+    print_prompt();
+    read_input(input_buffer);
 
-      if (input_buffer->buffer[0] == '.') {
-          switch (do_meta_command(input_buffer)) {
-              case (META_COMMAND_SUCCESS):
-                  continue;
-              case (META_COMMAND_UNRECOGNIZED):
-                  printf("Unrecognized command '%s'\n", input_buffer->buffer);
-                  continue;
-          }
-      }
+    if (input_buffer->buffer[0] == '.') {
+        switch (do_meta_command(input_buffer, table)) {
+            case (META_COMMAND_SUCCESS):
+                continue;
+            case (META_COMMAND_UNRECOGNIZED):
+                printf("Unrecognized command '%s'\n", input_buffer->buffer);
+                continue;
+        }
+    }
 
-      Statement statement;
-      switch (prepare_statement(input_buffer, &statement)) {
-          case (PREPARE_SUCCESS):
-            break;
-          case (PREPARE_SYNTAX_ERROR):
-            printf("Syntax error. Could not parse statement.\n");
-            continue;
-          case (PREPARE_UNRECOGNIZED):
-            printf("Unrecognized keyword at start of '%s'.\n", input_buffer->buffer);
-            continue;
-      }
-      switch (execute_statement(&statement, table)) {
-        case (EXECUTE_SUCCESS):
-          printf("Executed.\n");
-          break;
-        case (EXECUTE_TABLE_FULL):
-          printf("Error: Table full.\n");
-          break;
+    Statement statement;
+    switch (prepare_statement(input_buffer, &statement)) {
+      case (PREPARE_SUCCESS):
+        break;
+      case (PREPARE_NEGATIVE_ID):
+        printf("ID must be positive.\n");
+        continue;
+      case (PREPARE_STRING_TOO_LONG):
+        printf("String is too long.\n");
+        continue;
+      case (PREPARE_SYNTAX_ERROR):
+        printf("Syntax error. Could not parse statement.\n");
+        continue;
+      case (PREPARE_UNRECOGNIZED):
+        printf("Unrecognized keyword at start of '%s'.\n", input_buffer->buffer);
+        continue;
+    }
+    switch (execute_statement(&statement, table)) {
+      case (EXECUTE_SUCCESS):
+        printf("Executed.\n");
+        break;
+      case (EXECUTE_TABLE_FULL):
+        printf("Error: Table full.\n");
+        break;
+    }
   }
 }

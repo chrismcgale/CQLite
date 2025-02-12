@@ -6,5 +6,5 @@ OBJ = main.o
 %.o: %.c 
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-my_program: $(OBJ)
+db: $(OBJ)
 	$(CC) -o $@ $^ $(CFLAGS)
