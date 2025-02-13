@@ -24,7 +24,7 @@ typedef struct {
 
 typedef struct {
     uint32_t num_rows;
-    struct Pager* pager;
+    Pager* pager;
 } Table;
 
 
@@ -48,7 +48,6 @@ typedef struct {
 
 Table* db_open(const char* filename);
 void db_close(Table* table);
-void* row_slot(Table* table, uint32_t row_num);
 void serialize_row(Row* source, void* destination);
 void deserialize_row(void* source, Row* destination);
 

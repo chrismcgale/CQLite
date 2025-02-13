@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -g
-OBJ = main.o input.o table.o statement.o meta.o
+OBJ = main.o input.o table.o statement.o meta.o cursor.o
 
 
 %.o: %.c 

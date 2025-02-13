@@ -17,7 +17,7 @@ int main(int argc, char* argv[]) {
   }
 
   char* filename = argv[1];
-  Table* table = dp_open(filename);
+  Table* table = db_open(filename);
 
   if (table == NULL) {
     printf("Error: table is NULL\n");
