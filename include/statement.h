@@ -27,7 +27,8 @@ typedef enum {
 typedef enum {
     EXECUTE_SUCCESS,
     EXECUTE_TABLE_FULL,
-    EXECUTE_UNKNOWN_STATEMENT
+    EXECUTE_UNKNOWN_STATEMENT,
+    EXECUTE_DUPLICATE_KEY
 } ExecuteResult;
 
 void leaf_node_insert(Cursor* cursor, uint32_t key, Row* value);

@@ -15,7 +15,7 @@ typedef struct {
 
 void* get_page(Pager* pager, uint32_t page_num);
 Cursor* table_start(Table* table);
-Cursor* table_end(Table* table);
+Cursor* table_find(Table* table, uint32_t key);
 
 void* cursor_value(Cursor* cursor);
 void cursor_advance(Cursor* cursor);
