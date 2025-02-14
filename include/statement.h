@@ -1,8 +1,10 @@
 #ifndef STATEMENT_H
 #define STATEMENT_H
 
-#include "table.h"
+#include "constants.h"
+#include "cursor.h"
 #include "input.h"
+#include "node.h"
 
 typedef enum {
     STATEMENT_INSERT,
@@ -28,6 +30,7 @@ typedef enum {
     EXECUTE_UNKNOWN_STATEMENT
 } ExecuteResult;
 
+void leaf_node_insert(Cursor* cursor, uint32_t key, Row* value);
 PrepareResult prepare_statement(InputBuffer* input_buffer, Statement* statement);
 ExecuteResult execute_statement(Statement* statement, Table* table);
 

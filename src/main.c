@@ -5,10 +5,10 @@
 #include <string.h>
 #include <stdint.h>
 
-#include "input.h"
-#include "table.h"
-#include "statement.h"
-#include "meta.h"
+#include <input.h>
+#include <table.h>
+#include <statement.h>
+#include <meta.h>
 
 int main(int argc, char* argv[]) {
   if (argc < 2) {

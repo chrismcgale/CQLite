@@ -3,6 +3,7 @@
 
 #include "input.h"
 #include "table.h"
+#include "cursor.h"
 
 typedef enum {
     META_COMMAND_SUCCESS,

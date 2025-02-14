@@ -1,0 +1,5 @@
+*.o
+*.exe
+*.db
+.vscode
+__pycache__
